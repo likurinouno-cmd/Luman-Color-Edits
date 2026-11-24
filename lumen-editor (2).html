@@ -1,0 +1,287 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Lumen – Photo Editor</title>
+<style>
+:root{--bg:#17181a;--p:#212327;--p2:#2b2e33;--b:#383c42;--t:#e4e6e9;--m:#8b9097;--a:#6cb2e8}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--t);font:13px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+header{display:flex;align-items:center;gap:8px;padding:8px 12px;background:var(--p);border-bottom:1px solid var(--b);flex-wrap:wrap}
+header h1{font-size:15px;margin:0 auto 0 0;font-weight:600;letter-spacing:.02em}
+button,select,input[type=number],input[type=text]{background:var(--p2);color:var(--t);border:1px solid var(--b);border-radius:4px;padding:6px 10px;font:inherit}
+button{cursor:pointer}
+button:hover{border-color:var(--a)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--a);outline-offset:1px}
+button.pri{background:var(--a);color:#0c1620;border-color:var(--a);font-weight:600}
+button.on{border-color:var(--a);color:var(--a)}
+main{flex:1;display:flex;min-height:0}
+#stage{flex:1;display:flex;align-items:center;justify-content:center;padding:16px;min-width:0;position:relative}
+#cv{max-width:100%;max-height:100%;box-shadow:0 4px 24px #0008;display:none}
+#drop{text-align:center;color:var(--m);border:2px dashed var(--b);border-radius:8px;padding:48px 32px;max-width:420px}
+#drop b{color:var(--t);display:block;font-size:16px;margin-bottom:6px}
+#stage.over #drop{border-color:var(--a)}
+aside{width:320px;background:var(--p);border-left:1px solid var(--b);display:flex;flex-direction:column;min-height:0}
+.tabs{display:flex;border-bottom:1px solid var(--b)}
+.tabs button{flex:1;border:0;border-radius:0;background:none;padding:10px}
+.tabs button.on{box-shadow:inset 0 -2px var(--a)}
+.pane{display:none;overflow:auto;padding:12px;flex:1}
+.pane.on{display:block}
+h2{font-size:12px;font-weight:600;margin:16px 0 8px;color:var(--m)}
+h2:first-child{margin-top:0}
+#hist{width:100%;height:80px;background:#111214;border-radius:4px;display:block}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{padding:4px 9px}
+.r{margin:7px 0}
+.r label{display:flex;justify-content:space-between;color:var(--m);cursor:pointer}
+.r output{color:var(--t);font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--a);margin:2px 0 0}
+.row{display:flex;gap:8px;align-items:center;margin:8px 0}
+.row>*{flex:1;min-width:0}
+.row label{flex:0 0 auto;color:var(--m)}
+.info{color:var(--m);font-size:12px;margin:6px 0}
+#toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--p2);border:1px solid var(--b);padding:8px 14px;border-radius:6px;display:none;max-width:90%}
+#wheel{display:block;margin:0 auto 10px;touch-action:none;cursor:crosshair;border-radius:50%;max-width:100%}
+.zt{display:flex;gap:6px;margin-bottom:10px}
+.zt button{flex:1;padding:5px 2px;display:flex;align-items:center;justify-content:center;gap:5px;font-size:12px}
+.zt i{width:10px;height:10px;border-radius:50%;border:1px solid var(--m)}
+@media(max-width:760px){main{flex-direction:column}aside{width:100%;height:46vh;border-left:0;border-top:1px solid var(--b)}#stage{padding:8px}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Lumen</h1>
+  <button id="open">Open photo</button>
+  <button id="hold" disabled title="Hold to see the original">Before (hold)</button>
+  <button id="reset" disabled>Reset</button>
+  <input type="file" id="file" hidden accept="image/*,.cr2,.cr3,.nef,.arw,.dng,.raf,.orf,.rw2,.pef,.srw">
+</header>
+<main>
+  <div id="stage">
+    <div id="drop"><b>Drop a photo here</b>PNG, JPEG, WebP, GIF, BMP and RAW (CR2, NEF, ARW, DNG, etc.). Your photo is never uploaded.</div>
+    <canvas id="cv"></canvas>
+  </div>
+  <aside>
+    <div class="tabs"><button class="on" data-t="edit">Edit</button><button data-t="exp">Export &amp; resize</button></div>
+    <div class="pane on" id="edit">
+      <canvas id="hist" width="296" height="80"></canvas>
+      <h2>Preset</h2><div class="chips" id="presets"></div>
+      <h2>Basic</h2><div id="sl"></div>
+      <div class="row"><label><input type="checkbox" id="bw"> Black &amp; white</label></div>
+      <h2>Color grading</h2>
+      <div class="zt" id="zt"><button data-z="sh" class="on"><i></i>Shadows</button><button data-z="mid"><i></i>Midtones</button><button data-z="hi"><i></i>Highlights</button><button data-z="gl"><i></i>Global</button></div>
+      <canvas id="wheel" width="220" height="220" aria-label="Color wheel: drag to choose hue and saturation"></canvas>
+      <div id="cgs"></div>
+      <div class="chips" style="margin-top:8px"><button id="cgreset">Reset this zone</button></div>
+      <h2>Crop &amp; rotate</h2>
+      <div class="chips" id="ratios"></div>
+      <div class="chips" style="margin-top:8px">
+        <button data-g="l">Rotate left</button><button data-g="r">Rotate right</button>
+        <button data-g="h">Flip horizontal</button><button data-g="v">Flip vertical</button>
+      </div>
+    </div>
+    <div class="pane" id="exp">
+      <h2>Size</h2>
+      <div class="info" id="orig">No photo loaded.</div>
+      <div class="row"><label for="ew">Width</label><input type="number" id="ew" min="1"><label for="eh">Height</label><input type="number" id="eh" min="1"></div>
+      <div class="row"><label><input type="checkbox" id="lock" checked> Lock aspect ratio</label></div>
+      <div class="chips" id="sizes"></div>
+      <h2>File format</h2>
+      <div class="row"><select id="fmt">
+        <option value="image/jpeg">JPEG (.jpg)</option>
+        <option value="image/png">PNG (.png)</option>
+        <option value="image/webp">WebP (.webp)</option>
+        <option value="application/pdf">PDF (.pdf)</option>
+      </select></div>
+      <div class="r" id="qrow"><label><span>Quality</span><output id="qo">90</output></label><input type="range" id="q" min="10" max="100" value="90"></div>
+      <div class="row" id="trow"><label><input type="checkbox" id="tgt"> Target size (KB)</label><input type="number" id="tkb" value="500" min="10"></div>
+      <div class="row"><label for="fname">Name</label><input type="text" id="fname" value="photo"></div>
+      <button class="pri" id="go" style="width:100%;margin-top:8px" disabled>Download</button>
+      <div class="info" id="res"></div>
+      <div class="info">RAW: Lumen reads the JPEG preview embedded in the RAW file. Exporting to RAW is not supported by browsers; use PNG for a lossless result.</div>
+    </div>
+  </aside>
+</main>
+<div id="toast" role="status"></div>
+<script>
+const $=s=>document.querySelector(s);
+const ADJ=[['exposure','Exposure',-3,3,.05],['contrast','Contrast',-100,100,1],['highlights','Highlights',-100,100,1],['shadows','Shadows',-100,100,1],['temp','Temperature',-100,100,1],['tint','Tint',-100,100,1],['vibrance','Vibrance',-100,100,1],['sat','Saturation',-100,100,1],['vignette','Vignette',-100,100,1]];
+const PRE={'Original':{},'Bright':{exposure:.3,contrast:15,vibrance:30,shadows:25},'Cinematic':{contrast:25,temp:-15,tint:10,sat:-15,vignette:-35,shadows:20},'Warm':{temp:40,vibrance:20,exposure:.1},'Cool':{temp:-40,contrast:10},'Faded':{contrast:-25,shadows:40,sat:-20,exposure:.2},'Dramatic':{contrast:45,highlights:-40,shadows:30,vibrance:25,vignette:-25},'Black & white':{bw:1,contrast:25},'Teal-Orange':{contrast:15,vibrance:15,cg:{sh:{h:200,s:55,l:0},hi:{h:35,s:50,l:0}}},'Sunset':{temp:20,cg:{sh:{h:260,s:40,l:-5},mid:{h:20,s:20,l:0},hi:{h:40,s:55,l:0}}}};
+const RATIOS=[['Original',0],['1:1',1],['4:5',.8],['4:3',4/3],['3:2',1.5],['16:9',16/9]];
+const RAW=['cr2','cr3','nef','arw','dng','raf','orf','rw2','pef','srw'];
+const S={img:null,rot:0,fh:false,fv:false,ar:0,bw:false,hold:false,v:{}};
+const ZN=['sh','mid','hi','gl'];
+const zero=()=>{ADJ.forEach(a=>S.v[a[0]]=0);S.bw=false;S.cg={};ZN.forEach(z=>S.cg[z]={h:0,s:0,l:0});S.bl=50;S.ba=0};
+zero();S.z='sh';
+function hue2rgb(h){h=(((h%360)+360)%360)/60;const f=h%1;return[[1,f,0],[1-f,1,0],[0,1,f],[0,1-f,1],[f,0,1],[1,0,1-f]][h|0]}
+$('#cgs').innerHTML=[['h','Hue',0,359],['s','Saturation',0,100],['l','Luminance',-100,100],['bl','Blending',0,100],['ba','Balance',-100,100]].map(([k,l,a,b])=>`<div class="r"><label><span>${l}</span><output id="o_c${k}">0</output></label><input type="range" id="c_${k}" data-c="${k}" min="${a}" max="${b}" value="0"></div>`).join('');
+const WS=220,WR=WS/2-4,WB=document.createElement('canvas');WB.width=WB.height=WS;
+(()=>{const x=WB.getContext('2d'),d=x.createImageData(WS,WS);
+  for(let j=0;j<WS;j++)for(let i=0;i<WS;i++){const dx=i-WS/2+.5,dy=j-WS/2+.5,r=Math.hypot(dx,dy)/WR;if(r>1)continue;
+    const c=hue2rgb(Math.atan2(-dy,dx)*180/Math.PI),k=(j*WS+i)*4;for(let n=0;n<3;n++)d.data[k+n]=255*(1-r+r*c[n]);d.data[k+3]=255}
+  x.putImageData(d,0,0)})();
+function drawWheel(){const c=$('#wheel'),x=c.getContext('2d'),z=S.cg[S.z];x.clearRect(0,0,WS,WS);x.drawImage(WB,0,0);
+  const a=z.h*Math.PI/180,r=z.s/100*WR,px=WS/2+Math.cos(a)*r,py=WS/2-Math.sin(a)*r;
+  x.strokeStyle='#0007';x.lineWidth=1.5;x.beginPath();x.arc(WS/2,WS/2,r,0,7);x.stroke();
+  x.fillStyle='#fff';x.strokeStyle='#222';x.lineWidth=2;x.beginPath();x.arc(px,py,6,0,7);x.fill();x.stroke();
+  ZN.forEach(k=>{const q=S.cg[k],u=q.s/100,col=hue2rgb(q.h).map(v=>255*(1-u+u*v)|0);document.querySelector(`#zt [data-z=${k}] i`).style.background=q.s?`rgb(${col})`:'transparent'});
+  [['h',z.h],['s',z.s],['l',z.l],['bl',S.bl],['ba',S.ba]].forEach(([k,v])=>{$('#c_'+k).value=v;$('#o_c'+k).textContent=Math.round(v)})}
+const wp=e=>{const r=$('#wheel').getBoundingClientRect(),dx=(e.clientX-r.left)/r.width*WS-WS/2,dy=(e.clientY-r.top)/r.height*WS-WS/2,z=S.cg[S.z];
+  z.h=(Math.atan2(-dy,dx)*180/Math.PI+360)%360;z.s=Math.min(1,Math.hypot(dx,dy)/WR)*100;drawWheel();draw()};
+$('#wheel').onpointerdown=e=>{e.target.setPointerCapture(e.pointerId);wp(e);e.target.onpointermove=wp};
+$('#wheel').onpointerup=e=>{e.target.onpointermove=null};
+$('#wheel').ondblclick=()=>{S.cg[S.z]={h:0,s:0,l:0};drawWheel();draw()};
+$('#cgreset').onclick=$('#wheel').ondblclick;
+$('#zt').onclick=e=>{const b=e.target.closest('button');if(!b)return;S.z=b.dataset.z;document.querySelectorAll('#zt button').forEach(x=>x.classList.toggle('on',x===b));drawWheel()};
+$('#cgs').addEventListener('input',e=>{const k=e.target.dataset.c;if(!k)return;const v=+e.target.value;
+  if(k==='bl')S.bl=v;else if(k==='ba')S.ba=v;else S.cg[S.z][k]=v;drawWheel();draw()});
+drawWheel();
+
+// ---------- UI ----------
+$('#sl').innerHTML=ADJ.map(([k,l,a,b,s])=>`<div class="r"><label data-k="${k}" title="Double-click to reset"><span>${l}</span><output id="o_${k}">0</output></label><input type="range" id="s_${k}" data-k="${k}" min="${a}" max="${b}" step="${s}" value="0"></div>`).join('');
+$('#presets').innerHTML=Object.keys(PRE).map(n=>`<button data-p="${n}">${n}</button>`).join('');
+$('#ratios').innerHTML=RATIOS.map(([n,r])=>`<button data-r="${r}" class="${r===0?'on':''}">${n}</button>`).join('');
+$('#sizes').innerHTML=[['25%',.25],['50%',.5],['75%',.75],['100%',1]].map(([n,f])=>`<button data-f="${f}">${n}</button>`).join('')+[1080,1920,3840].map(n=>`<button data-l="${n}">${n}px</button>`).join('');
+function syncUI(){ADJ.forEach(([k])=>{$('#s_'+k).value=S.v[k];$('#o_'+k).textContent=S.v[k]});$('#bw').checked=S.bw;drawWheel()}
+function toast(m){const t=$('#toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',4000)}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tabs button,.pane').forEach(x=>x.classList.remove('on'));b.classList.add('on');$('#'+b.dataset.t).classList.add('on')});
+$('#sl').addEventListener('input',e=>{const k=e.target.dataset.k;if(!k)return;S.v[k]=+e.target.value;$('#o_'+k).textContent=e.target.value;draw()});
+$('#sl').addEventListener('dblclick',e=>{const l=e.target.closest('label');if(!l)return;S.v[l.dataset.k]=0;syncUI();draw()});
+$('#bw').onchange=e=>{S.bw=e.target.checked;draw()};
+$('#presets').onclick=e=>{const p=PRE[e.target.dataset.p];if(!p)return;zero();const{cg,bw,...pv}=p;Object.assign(S.v,pv);S.bw=!!bw;if(cg)for(const k in cg)Object.assign(S.cg[k],cg[k]);syncUI();draw()};
+$('#reset').onclick=()=>{zero();S.rot=0;S.fh=S.fv=false;setRatio(0);syncUI();draw()};
+$('#ratios').onclick=e=>{if(e.target.dataset.r!=null)setRatio(+e.target.dataset.r)};
+function setRatio(r){S.ar=r;document.querySelectorAll('#ratios button').forEach(b=>b.classList.toggle('on',+b.dataset.r===r));syncDims();draw()}
+document.querySelector('#edit .chips:last-child').onclick=e=>{const g=e.target.dataset.g;if(!g)return;
+  if(g=='l')S.rot=(S.rot+3)%4;if(g=='r')S.rot=(S.rot+1)%4;if(g=='h')S.fh=!S.fh;if(g=='v')S.fv=!S.fv;syncDims();draw()};
+const hold=v=>()=>{S.hold=v;draw()};
+$('#hold').onpointerdown=hold(true);$('#hold').onpointerup=$('#hold').onpointerleave=hold(false);
+$('#fmt').onchange=()=>{const lossy=$('#fmt').value!=='image/png';$('#qrow').style.display=$('#trow').style.display=lossy?'':'none'};
+$('#q').oninput=e=>$('#qo').textContent=e.target.value;
+
+// ---------- Geometry ----------
+function geom(){const{width:W,height:H}=S.img,sw=S.rot%2===1,rw=sw?H:W,rh=sw?W:H;let cw=rw,ch=rh;
+  if(S.ar){if(rw/rh>S.ar)cw=rh*S.ar;else ch=rw/S.ar}
+  return{rw,rh,cw,ch,cx:(rw-cw)/2,cy:(rh-ch)/2}}
+function build(ow,adjust,oh,bg){
+  const g=geom(),s=ow/g.cw,R=document.createElement('canvas');
+  R.width=Math.ceil(g.rw*s);R.height=Math.ceil(g.rh*s);
+  const x=R.getContext('2d');x.imageSmoothingQuality='high';
+  x.translate(R.width/2,R.height/2);x.rotate(S.rot*Math.PI/2);x.scale(S.fh?-1:1,S.fv?-1:1);
+  x.drawImage(S.img,-S.img.width*s/2,-S.img.height*s/2,S.img.width*s,S.img.height*s);
+  const h=oh||Math.round(g.ch*s),c=document.createElement('canvas');c.width=ow;c.height=h;
+  const t=c.getContext('2d',{willReadFrequently:true});t.imageSmoothingQuality='high';
+  if(bg){t.fillStyle='#fff';t.fillRect(0,0,ow,h)}
+  t.drawImage(R,g.cx*s,g.cy*s,g.cw*s,g.ch*s,0,0,ow,h);
+  if(adjust){const d=t.getImageData(0,0,ow,h);const hist=process(d,ow,h,adjust==='hist');t.putImageData(d,0,0);c.hist=hist}
+  return c}
+
+// ---------- Pixel pipeline ----------
+function process(d,w,h,wantHist){
+  const v=S.v,p=d.data,ex=Math.pow(2,v.exposure),c=1+v.contrast/100,tp=v.temp*.3,ti=v.tint*.2,
+    sa=v.sat/100,vb=v.vibrance/100,hi=v.highlights*.6,sh=v.shadows*.6,vg=v.vignette/100,
+    cx=w/2,cy=h/2,md=Math.hypot(cx,cy),H=wantHist?[new Uint32Array(256),new Uint32Array(256),new Uint32Array(256)]:null;
+  const zs=ZN.map(k=>{const z=S.cg[k],c=hue2rgb(z.h),m=(c[0]+c[1]+c[2])/3,k2=z.s/100*70;return[(c[0]-m)*k2,(c[1]-m)*k2,(c[2]-m)*k2,z.l*.6]}),
+    cgOn=zs.some(a=>a[0]||a[1]||a[2]||a[3]),lo=.25-S.ba/400,hh=.75-S.ba/400,bw2=.1+.3*S.bl/100,
+    ss=(a,b,x)=>{const t=x<=a?0:x>=b?1:(x-a)/(b-a);return t*t*(3-2*t)};
+  for(let i=0,x=0,y=0;i<p.length;i+=4){
+    let r=p[i]*ex+tp,g=p[i+1]*ex-ti,b=p[i+2]*ex-tp;
+    let l=(.299*r+.587*g+.114*b)/255;l=l<0?0:l>1?1:l;
+    const sd=sh*(1-l)*(1-l)+hi*l*l;r+=sd;g+=sd;b+=sd;
+    r=(r-128)*c+128;g=(g-128)*c+128;b=(b-128)*c+128;
+    const gr=.299*r+.587*g+.114*b;
+    if(S.bw){r=g=b=gr}else{
+      const mx=Math.max(r,g,b),mn=Math.min(r,g,b),k=1+sa+vb*(1-(mx>0?(mx-mn)/mx:0));
+      r=gr+(r-gr)*k;g=gr+(g-gr)*k;b=gr+(b-gr)*k}
+    if(cgOn){const L=gr/255,sw=1-ss(lo-bw2,lo+bw2,L),hw=ss(hh-bw2,hh+bw2,L),mw=Math.max(0,1-sw-hw),A=zs[0],M=zs[1],Hh=zs[2],G=zs[3],
+      dl=sw*A[3]+mw*M[3]+hw*Hh[3]+G[3];
+      r+=sw*A[0]+mw*M[0]+hw*Hh[0]+G[0]+dl;g+=sw*A[1]+mw*M[1]+hw*Hh[1]+G[1]+dl;b+=sw*A[2]+mw*M[2]+hw*Hh[2]+G[2]+dl}
+    if(vg){const dd=Math.hypot(x-cx,y-cy)/md,f=1+vg*dd*dd;r*=f;g*=f;b*=f}
+    p[i]=r;p[i+1]=g;p[i+2]=b;
+    if(H){H[0][p[i]]++;H[1][p[i+1]]++;H[2][p[i+2]]++}
+    if(++x===w){x=0;y++}}
+  return H}
+function drawHist(H){const c=$('#hist'),x=c.getContext('2d');x.clearRect(0,0,c.width,c.height);if(!H)return;
+  const mx=Math.max(...H.map(a=>Math.max(...a.slice(2,254))))||1;x.globalCompositeOperation='lighter';
+  ['#a02020','#20a020','#2050c0'].forEach((col,j)=>{x.fillStyle=col;H[j].forEach((n,i)=>{const hh=Math.min(1,n/mx)*c.height;x.fillRect(i*c.width/256,c.height-hh,c.width/256+1,hh)})})}
+
+// ---------- Render ----------
+let raf;function draw(){cancelAnimationFrame(raf);raf=requestAnimationFrame(render)}
+function render(){if(!S.img)return;const g=geom(),ow=Math.max(1,Math.round(Math.min(g.cw,1400))),c=build(ow,S.hold?false:'hist');
+  const cv=$('#cv');cv.width=c.width;cv.height=c.height;cv.getContext('2d').drawImage(c,0,0);drawHist(c.hist)}
+
+// ---------- Loading ----------
+const loadImg=u=>new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=()=>no(Error("Your browser cannot read this format"));i.src=u});
+async function rawPreview(f){
+  const b=new Uint8Array(await f.arrayBuffer()),st=[];
+  for(let i=0;i<b.length-3&&st.length<12;i++)if(b[i]===255&&b[i+1]===216&&b[i+2]===255)st.push(i);
+  let best=null;
+  for(const s of st){try{const im=await loadImg(URL.createObjectURL(new Blob([b.subarray(s)],{type:'image/jpeg'})));if(!best||im.naturalWidth>best.naturalWidth)best=im}catch(e){}}
+  if(!best)throw Error('No embedded JPEG preview found in this RAW file');
+  return best}
+async function load(f){
+  if(!f)return;const ext=f.name.split('.').pop().toLowerCase();
+  if(ext==='pdf'){toast('PDF is available as an export format only.');return}
+  try{
+    S.img=RAW.includes(ext)?await rawPreview(f):await loadImg(URL.createObjectURL(f));
+    if(RAW.includes(ext))toast('RAW file opened via its embedded JPEG preview ('+S.img.naturalWidth+'px).');
+  }catch(e){toast(e.message);return}
+  S.rot=0;S.fh=S.fv=false;zero();setRatio(0);syncUI();
+  $('#fname').value=f.name.replace(/\.[^.]+$/,'')+'-edit';
+  $('#drop').style.display='none';$('#cv').style.display='block';
+  ['#hold','#reset','#go'].forEach(s=>$(s).disabled=false);draw()}
+$('#open').onclick=()=>$('#file').click();
+$('#file').onchange=e=>load(e.target.files[0]);
+const st=$('#stage');
+['dragover','dragenter'].forEach(n=>addEventListener(n,e=>{e.preventDefault();st.classList.add('over')}));
+['dragleave','drop'].forEach(n=>addEventListener(n,e=>{e.preventDefault();st.classList.remove('over')}));
+addEventListener('drop',e=>load(e.dataTransfer.files[0]));
+
+// ---------- Resizer ----------
+function syncDims(){if(!S.img)return;const g=geom();$('#ew').value=Math.round(g.cw);$('#eh').value=Math.round(g.ch);
+  $('#orig').textContent=`Original: ${S.img.width} × ${S.img.height} px · after crop: ${Math.round(g.cw)} × ${Math.round(g.ch)} px`}
+$('#ew').oninput=()=>{if($('#lock').checked&&S.img){const g=geom();$('#eh').value=Math.max(1,Math.round($('#ew').value*g.ch/g.cw))}};
+$('#eh').oninput=()=>{if($('#lock').checked&&S.img){const g=geom();$('#ew').value=Math.max(1,Math.round($('#eh').value*g.cw/g.ch))}};
+$('#sizes').onclick=e=>{if(!S.img)return;const g=geom(),f=e.target.dataset.f,l=e.target.dataset.l;
+  if(f){$('#ew').value=Math.max(1,Math.round(g.cw*f));$('#eh').value=Math.max(1,Math.round(g.ch*f))}
+  if(l){const k=l/Math.max(g.cw,g.ch);$('#ew').value=Math.round(g.cw*k);$('#eh').value=Math.round(g.ch*k)}};
+
+// ---------- Export ----------
+const tb=(c,t,q)=>new Promise(r=>c.toBlob(r,t,q));
+function makePDF(jpg,w,h){
+  const e=new TextEncoder(),ch=[],off=[];let n=0;
+  const add=x=>{const b=typeof x==='string'?e.encode(x):x;ch.push(b);n+=b.length};
+  const o=(i,f)=>{off[i]=n;add(i+' 0 obj\n');f();add('\nendobj\n')};
+  const pw=(w*.75).toFixed(2),ph=(h*.75).toFixed(2),cs=`q ${pw} 0 0 ${ph} 0 0 cm /Im0 Do Q`;
+  add('%PDF-1.4\n');
+  o(1,()=>add('<</Type/Catalog/Pages 2 0 R>>'));
+  o(2,()=>add('<</Type/Pages/Kids[3 0 R]/Count 1>>'));
+  o(3,()=>add(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 ${pw} ${ph}]/Resources<</XObject<</Im0 4 0 R>>>>/Contents 5 0 R>>`));
+  o(4,()=>{add(`<</Type/XObject/Subtype/Image/Width ${w}/Height ${h}/ColorSpace/DeviceRGB/BitsPerComponent 8/Filter/DCTDecode/Length ${jpg.length}>>\nstream\n`);add(jpg);add('\nendstream')});
+  o(5,()=>add(`<</Length ${cs.length}>>\nstream\n${cs}\nendstream`));
+  const x=n;
+  add('xref\n0 6\n0000000000 65535 f \n'+[1,2,3,4,5].map(i=>String(off[i]).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<</Size 6/Root 1 0 R>>\nstartxref\n${x}\n%%EOF`);
+  return new Blob(ch,{type:'application/pdf'})}
+$('#go').onclick=async()=>{
+  if(!S.img)return;const btn=$('#go');btn.disabled=true;btn.textContent='Processing…';
+  try{
+    const W=Math.max(1,+$('#ew').value|0),H=Math.max(1,+$('#eh').value|0),fmt=$('#fmt').value,pdf=fmt==='application/pdf',
+      type=pdf?'image/jpeg':fmt,c=build(W,true,H,type==='image/jpeg');
+    let q=+$('#q').value/100,blob;
+    if(type!=='image/png'&&$('#tgt').checked){
+      const goal=+$('#tkb').value*1024;let lo=.05,hi=1;blob=await tb(c,type,lo);
+      for(let i=0;i<8;i++){const m=(lo+hi)/2,bb=await tb(c,type,m);if(bb.size<=goal){lo=m;blob=bb}else hi=m}
+    }else blob=await tb(c,type,q);
+    let name=($('#fname').value||'photo'),ext={'image/jpeg':'jpg','image/png':'png','image/webp':'webp'}[type];
+    if(pdf){blob=makePDF(new Uint8Array(await blob.arrayBuffer()),W,H);ext='pdf'}
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name+'.'+ext;document.body.appendChild(a);a.click();a.remove();
+    $('#res').textContent=`Done: ${W} × ${H} px, ${(blob.size/1024).toFixed(0)} KB (.${ext})`;
+    if($('#tgt').checked&&blob.size>+$('#tkb').value*1024)toast('Target size not reached; reduce the image dimensions.');
+  }catch(e){toast('Export failed: '+e.message)}
+  btn.disabled=false;btn.textContent='Download'};
+$('#fmt').onchange();
+</script>
+</body>
+</html>
